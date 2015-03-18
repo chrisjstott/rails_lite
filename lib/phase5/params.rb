@@ -10,8 +10,9 @@ module Phase5
     # You haven't done routing yet; but assume route params will be
     # passed in as a hash to `Params.new` as below:
     def initialize(req, route_params = {})
-      @params = parse_www_encoded_form(req.query_string)
-      @params = @params.merge(parse_www_encoded_form(req.body))
+      query_params = parse_www_encoded_form(req.query_string)
+      body_params = parse_www_encoded_form(req.body)
+      @params = deep_merge(query_params, (deep_merge(body_params, route_params)))
     end
 
     def [](key)
@@ -35,14 +36,34 @@ module Phase5
       pairs = URI::decode_www_form(www_encoded_form)
       params_hash = {}
       pairs.each do |pair|
-        params_hash[pair.first] = pair.last
+        key_array = parse_key(pair.first)
+        value = pair.last
+        new_hash = nest_hash(key_array, value)
+        params_hash = deep_merge(params_hash, new_hash)
       end
       params_hash
+    end
+
+    def nest_hash(key_array, value)
+      return value if key_array.empty?
+      {key_array.first => nest_hash(key_array.drop(1), value)}
+    end
+
+    def deep_merge(hash1, hash2)
+      hash2.each do |key, value|
+        if hash1[key].nil?
+          hash1[key] = value
+        else
+          deep_merge(hash1[key], value)
+        end
+      end
+      hash1
     end
 
     # this should return an array
     # user[address][street] should return ['user', 'address', 'street']
     def parse_key(key)
+      return key.split(/\]\[|\[|\]/)
     end
   end
 end
